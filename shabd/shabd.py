@@ -43,26 +43,37 @@ def cambridge(word, conn, c):
     }
     
     url = "https://dictionary.cambridge.org/dictionary/english/" + word
-    response = requests.get(url, headers=headers)
-    remove = ["A1", "A2", "B1", "B2", "C1"]
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    word_title = soup.find(class_="ti fs fs12 lmb-0 hw superentry").get_text()
-    print(f'{word_title}:')
-    
-    num = 0
-    meaning_ = ""
-    for item in soup.select(".ddef_h"):
-        num += 1
-        a = item.get_text().lstrip(" ").rstrip(": ").split()
-        a_list = [word for word in a if word not in remove]
-        actual = ' '.join(a_list)
-        meaning_ = meaning_ + f'{num}. {actual}\n'
-    
-    print(meaning_)
-    c.execute('''INSERT INTO dictionary VALUES(?,?)''', (word, meaning_))
-    conn.commit()
-    return meaning_
+    try:
+        response = requests.get(url, headers=headers)
+        remove = ["A1", "A2", "B1", "B2", "C1"]
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        word_title_elem = soup.find(class_="ti fs fs12 lmb-0 hw superentry")
+        if word_title_elem is None:
+            raise ValueError("Word not found in dictionary")
+            
+        word_title = word_title_elem.get_text()
+        print(f'{word_title}:')
+        
+        num = 0
+        meaning_ = ""
+        for item in soup.select(".ddef_h"):
+            num += 1
+            a = item.get_text().lstrip(" ").rstrip(": ").split()
+            a_list = [word for word in a if word not in remove]
+            actual = ' '.join(a_list)
+            meaning_ = meaning_ + f'{num}. {actual}\n'
+        
+        if num == 0:
+            raise ValueError("No definitions found for this word")
+            
+        print(meaning_)
+        c.execute('''INSERT INTO dictionary VALUES(?,?)''', (word, meaning_))
+        conn.commit()
+        return meaning_
+    except Exception:
+        # Catch all exceptions but don't show detailed error messages to users
+        raise ValueError("Word not found in dictionary")
 
 def lookup_word(word):
     """Look up a word in the database or fetch it from Cambridge Dictionary."""
@@ -77,10 +88,9 @@ def lookup_word(word):
             print(entry[1])
         else:
             cambridge(word, conn, c)
-    except Exception as e:
+    except Exception:
         print("Something went wrong!")
         print("Possibly the word you entered is not in the dictionary or there's a connection issue")
-        print(f"Error details: {str(e)}")
     finally:
         conn.close()
 
@@ -97,7 +107,7 @@ def main():
     parser.add_argument(
         "-v", "--version",
         action="version",
-        version="shabd 1.0"
+        version="shabd 1.1"
     )
     
     args = parser.parse_args()
